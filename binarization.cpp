@@ -12,9 +12,9 @@ int main()
     Mat test = imread("/home/syeda_urooj_fatima/Downloads/Images/po.png",1);
     Mat gray;
     cvtColor(test,gray,CV_BGR2GRAY);
-    Mat out (test.rows, test.cols, CV_8U);
+    Mat out (test.rows, test.cols, CV_32S);
 
-    int win_size=3;
+    int win_size=2;
     int pad=win_size/2;
 
     Mat en_test;
@@ -34,7 +34,7 @@ int main()
     }
 
     namedWindow("ORIGINAL");
-    imshow("ORIGINAL",test);
+    imshow("ORIGINAL",gray);
     namedWindow("PERCENTILED");
     imshow("PERCENTILED",out);
     waitKey(0);
