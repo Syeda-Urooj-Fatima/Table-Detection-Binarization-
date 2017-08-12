@@ -6,59 +6,151 @@
 using namespace std;
 using namespace cv;
 
-uchar PercentileFilter(Mat r, int index);
+Mat PercentileFilter(Mat img, int window, int p);
+
 int main()
 {
-    Mat test = imread("/home/syeda_urooj_fatima/Downloads/Images/po.png",1); //input image
+    Mat test = imread("/home/syeda_urooj_fatima/Downloads/Images/page.jpg",1); //input image
     Mat gray; //grayscaled input image
     cvtColor(test,gray,CV_BGR2GRAY);
+    gray.convertTo(gray,CV_32FC1);
     Mat out (gray.rows, gray.cols, CV_8U); //binary output image
-    int win_size = 5;
-    int pad = win_size/2;
-
-    Mat en_test; //extrapolated image with paddings around borders
-    copyMakeBorder(gray,en_test,pad,pad,pad,pad,BORDER_REPLICATE);
-
-    int p =80; //percentile rank
-    int n = win_size*win_size; //number of pixels in windows
-    int index = round(n*p/100); //index of required percentile rank pixel
-
-    float t=0.3; //threshold factor;
+    int win_size = 40;
+    int p =90; //percentile rank
 
 
-    for (int i=0; i<en_test.rows-(2*pad); i++) //Applying percentile filter
-    {
-
-        for(int j=0; j<en_test.cols-(2*pad); j++)
-        {
-            Mat r(en_test,Rect(j,i,win_size,win_size));
-            out.at<uchar>(i,j) = PercentileFilter(r, index);
-        }
-    }
-
+    float t=0.6; //threshold factor;
+    out = PercentileFilter(gray,win_size,p);
+    gray.convertTo(gray,CV_8U);
+    //cout<<gray;
+    //cout<<out;
+    //out.convertTo(out,CV_8U);
     namedWindow("ORIGINAL");
     imshow("ORIGINAL",gray);
     namedWindow("PERCENTILED");
     imshow("PERCENTILED",out);
+    imwrite("/home/syeda_urooj_fatima/Downloads/Images/MAT1.jpg",out);
 
     for(int i=0; i<gray.rows; i++) //binarizing the gray scale image
     {
         for (int j=0; j<gray.cols; j++)
         {
             if(gray.at<uchar>(i,j) < t*out.at<uchar>(i,j))
-                out.at<uchar>(i,j)=255;
-            else
                 out.at<uchar>(i,j)=0;
+            else
+                out.at<uchar>(i,j)=255;
         }
     }
 
     namedWindow("BINARIZED");
     imshow("BINARIZED",out);
+    imwrite("/home/syeda_urooj_fatima/Downloads/Images/MAT2.jpg",out);
     waitKey(0);
     return 0;
 }
 
-uchar PercentileFilter(Mat r,int index) //function applying percentile filter on matrix r using "window search" method
+Mat PercentileFilter(Mat img,int win_size, int p) //function applying percentile filter on matrix r using "window search" method
+{
+    bool nextline=false;
+    int pad = win_size/2;
+    int n = win_size*win_size; //number of pixels in windows
+    int index = round(n*p/100); //index of required percentile rank pixel
+    Mat en_test; //extrapolated image with paddings around borders
+    copyMakeBorder(img,en_test,pad,pad,pad,pad,BORDER_REPLICATE);
+    Mat out (img.rows, img.cols, img.type());
+
+    Mat hist;
+    int histsize=256;
+    float range[] = { 0, 256 };
+    const float* histRange = { range };
+    int sum=0;
+    Mat first;
+
+    //cout<<en_test;
+
+    for (int i=0; i<en_test.rows-(2*pad); i++) //Applying percentile filter
+    {
+        for(int j=0; j<en_test.cols-(2*pad); j++)
+        {
+            Mat r(en_test,Rect(j,i,win_size,win_size));
+            if(i==0 && j==0)
+            {
+                calcHist(&r,1,0,Mat(),hist,1,&histsize,&histRange,true,true);
+                for(int k=0; k<histsize; k++)
+                {
+                    sum+=hist.at<float>(k);
+                    if(sum>=index+1)
+                    {
+                        out.at<float>(i,j)=k;
+                        break;
+                    }
+                }
+                hist.copyTo(first);
+            }
+
+            else if (!nextline)
+            {
+                for(int y=i; y<i+win_size; y++)
+                {
+                    hist.at<float>(en_test.at<float>(y,j-1))--;
+                }
+
+                for(int z=j+win_size-1, y=i; y<i+win_size; y++)
+                {
+                    hist.at<float>(en_test.at<float>(y,z))++;
+                }
+
+                for(int k=0; k<histsize; k++)
+                {
+                    sum+=hist.at<float>(k);
+                    if(sum>=index+1)
+                    {
+                        out.at<float>(i,j)=k;
+                        break;
+                    }
+                }
+            }
+
+            else
+            {
+                first.copyTo(hist);
+                for(int z=j; z<j+win_size; z++)
+                {
+                    hist.at<float>(en_test.at<float>(i-1,z))--;
+                }
+
+                for(int y=i+win_size-1, z=j; z<j+win_size; z++)
+                {
+                    hist.at<float>(en_test.at<float>(y,z))++;
+                }
+
+                for(int k=0; k<histsize; k++)
+                {
+                    sum+=hist.at<float>(k);
+                    if(sum>=index+1)
+                    {
+                        out.at<float>(i,j)=k;
+                        break;
+                    }
+                }
+                hist.copyTo(first);
+                nextline=false;
+            }
+
+            sum=0;
+        }
+        nextline=true;
+    }
+
+    //cout<<out;
+    out.convertTo(out,CV_8U);
+    return out;
+    //imshow("ORIGINAL",gray);
+    //cout<<hist.type();
+}
+
+
+/*uchar PercentileFilter(Mat r,int index) //function applying percentile filter on matrix r using "window search" method
 {
     vector<uchar> A; //vector for pixels under consideration
     vector<uchar> A_s; //vector for pixels under the percentile rank
@@ -109,8 +201,4 @@ uchar PercentileFilter(Mat r,int index) //function applying percentile filter on
     }
 
     return A[0];
-}
-
-
-
-//Note: Window search method is mentioned in "Fast Percentile Filtering" paper
+}*/
